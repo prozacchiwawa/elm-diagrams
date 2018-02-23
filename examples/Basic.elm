@@ -2,12 +2,10 @@ module Basic exposing (..)
 
 import Element as E
 import Collage as C
-import Json.Decode as JD
 import Mouse
 import Window
 import Html exposing (Html, div)
 import Html.Attributes exposing (style)
-import Html.Events exposing (on)
 
 import Color
 import Debug
@@ -98,30 +96,17 @@ update msg (Model model) =
         (applyToState ! [])
         actions
 
-ptDecoder mt =
-    JD.map2 Mouse.Position
-        (JD.field "clientX" JD.int)
-        (JD.field "clientY" JD.int)
-    |> JD.map (ExternalMsg << mt)
-               
 view (Model model) =
-    div [ ]
-        [ Diagrams.Interact.view model.interact
-        , div
-              [ on "mousemove" (ptDecoder Diagrams.Type.Mouse)
-              , on "mousedown" (ptDecoder Diagrams.Type.Down)
-              , on "mouseup"   (ptDecoder Diagrams.Type.Up)
-              , style
-                   [ ("position", "absolute")
-                   , ("left", "0")
-                   , ("top", "0")
-                   , ("width", "100%")
-                   , ("height", "100%")
-                   , ("z-index", "2")
-                   ]
-              ]
-              []
+    Diagrams.Interact.view
+        [style
+             [ ("position", "absolute")
+             , ("left", "0")
+             , ("top", "0")
+             , ("width", "100%")
+             , ("height", "100%")
+             ]
         ]
+        model.interact |> Html.map ExternalMsg
 
 subs _ =
     Sub.batch [ Window.resizes Size ]

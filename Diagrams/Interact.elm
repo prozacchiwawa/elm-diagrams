@@ -23,9 +23,12 @@ Mailboxes to push out updates)
 
 import Diagrams.Geom exposing (..)
 
-import Window
+import Json.Decode as JD
+import Html exposing (Html, Attribute, div)
+import Html.Attributes exposing (style)
+import Html.Events exposing (on)
 import Mouse
-import Html exposing (Html)
+import Window
 
 import List as L
 import Maybe as M
@@ -230,11 +233,33 @@ mapWithEarlyStop f l =
                  (y, True) -> [y]
                  (y, False) -> y :: (mapWithEarlyStop f xs)
 
-view : InteractionState t a -> Html msg
-view interaction =
-    Diagrams.FullWindow.view
-        ( round interaction.mouseState.windowSize.dims.width
-        , round interaction.mouseState.windowSize.dims.height
-        )
-        (diagramOf interaction)
-    |> E.toHtml
+ptDecoder mt =
+    JD.map2 Mouse.Position
+        (JD.field "clientX" JD.int)
+        (JD.field "clientY" JD.int)
+    |> JD.map mt
+               
+view : List (Attribute Msg) -> InteractionState t a -> Html Msg
+view attrs interaction =
+    div attrs
+        [ Diagrams.FullWindow.view
+              ( round interaction.mouseState.windowSize.dims.width
+              , round interaction.mouseState.windowSize.dims.height
+              )
+              (diagramOf interaction)
+        |> E.toHtml
+        , div
+              [ on "mousemove" (ptDecoder Diagrams.Type.Mouse)
+              , on "mousedown" (ptDecoder Diagrams.Type.Down)
+              , on "mouseup"   (ptDecoder Diagrams.Type.Up)
+              , style
+                   [ ("position", "absolute")
+                   , ("left", "0")
+                   , ("top", "0")
+                   , ("width", "100%")
+                   , ("height", "100%")
+                   , ("z-index", "2")
+                   ]
+              ]
+              []
+        ]
