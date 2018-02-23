@@ -1,6 +1,6 @@
-module Diagrams.Query
+module Diagrams.Query exposing
     ( PickTree(..), pick, getCoords, TagPath
-    ) where
+    )
 
 {-| Retreive information about laid-out diagrams.
 
@@ -13,7 +13,7 @@ module Diagrams.Query
 
 import List as L
 import Maybe as M
-import Graphics.Element as E
+import Element as E
 
 import Diagrams.Core exposing (..)
 import Diagrams.Geom exposing (..)
@@ -56,10 +56,16 @@ pick diag point =
   in
     case diag of
       Circle r fs ->
-        if magnitude point <= r + (halfStrokeWidth fs) then
-          Just PickLeaf
-        else
-          Nothing
+          if r == 3 then
+              if magnitude (Debug.log "pt?" point) <= r + (halfStrokeWidth fs) then
+                  Debug.log "pick?" Just PickLeaf
+              else
+                  Nothing
+          else
+              if magnitude point <= r + (halfStrokeWidth fs) then
+                  Just PickLeaf
+              else
+                  Nothing
 
       Path pts _ ->
         Nothing -- TODO implement picking for paths
@@ -121,7 +127,7 @@ getCoords dia path =
                   then recurse dia xs start
                   else Nothing
               Group dias ->
-                  M.oneOf <| L.map (\d -> recurse d path start) dias
+                  List.head <| List.filterMap identity <| L.map (\d -> recurse d path start) dias
               TransformD trans dia ->
                   recurse dia path (applyTrans trans start)
               _ -> Nothing

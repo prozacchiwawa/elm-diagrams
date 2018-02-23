@@ -1,9 +1,8 @@
-module Diagrams.Interact
-    ( RenderFunc, UpdateFunc
-    , InteractionState, MouseState
-    , initInteractState, interactFold, update, updateModel, initMouseState
-    , processMouseEvent
-    ) where
+module Diagrams.Interact exposing
+    ( InteractionState, MouseState
+    , initInteractState, update, initMouseState
+    , processMouseEvent, diagramOf, withDiagram
+    )
 
 {-| An abstraction for making diagrams which change as a function of the mouse.
 
@@ -16,31 +15,28 @@ is being clicked on, etc) is wrapped up inside an `InteractionState` value.
 Look at GraphEditor for an example. (TODO: better docs / tutorial; explore using
 Mailboxes to push out updates)
 
-# Function Types
-@docs RenderFunc, UpdateFunc
-
 # Interaction
 @docs InteractionState, MouseState, initInteractState
-@docs initMouseState, interactFold, update, updateModel
+@docs initMouseState, interactFold, update
 @docs processMouseEvent
 
 -}
 
-import Signal as S
+import Diagrams.Geom exposing (..)
+
 import Window
 import Mouse
 
 import List as L
 import Maybe as M
-import Graphics.Element as E
-import Graphics.Collage as C
+import Element as E
+import Collage as C
 
 import Diagrams.Core exposing (..)
 import Diagrams.Type exposing (..)
 import Diagrams.Query exposing (..)
 import Diagrams.Geom exposing (..)
 import Diagrams.Actions exposing (..)
-import Diagrams.Wiring exposing (..)
 
 import Debug
 
@@ -60,77 +56,40 @@ initMouseState =
     }
 
 {-|-}
-type alias InteractionState m t a =
+type alias InteractionState t a =
     { mouseState : MouseState t a
     , diagram : Diagram t a
-    , modelState : m
-    , renderFunc : RenderFunc m t a
-    , updateFunc : UpdateFunc m a
     }
-
-{-|-}
-type alias RenderFunc m t a = m -> Diagram t a
-
-{-|-}
-type alias UpdateFunc m a = a -> m -> m
-
-{-| One top-level interface to this module. Given
-- how to update the state (type `m`) given an action (type `a`),
-- how to render a diagram given the state,
-- and how to compute the location of the collage on screen from the window dimensions,
-Return a signal of diagrams.
-
-Since it returns a signal, you should only use it if this is the top-level interaction of your app; i.e.
-you aren't making a component that's nestable inside others as in the Elm Architecture. To make a component,
-use `update` to build an update function.
--}
-interactFold : UpdateFunc m a -> RenderFunc m t a -> CollageLocFunc -> m -> Signal (Diagram t a)
-interactFold updateF renderF collageLocF initModel =
-  let
-    states = S.foldp update
-                (initInteractState updateF renderF initModel)
-                (makeUpdateStream collageLocF)
-  in
-    S.map .diagram states
 
 {-| Function to update the interaction state, given an event (probably from `Diagrams.Wiring`'s `makeUpdateStream`)
 -- the other top-level interface. -}
-update : (CollageLocation, PrimMouseEvent) -> InteractionState m t a -> InteractionState m t a
+update : (CollageLocation, PrimMouseEvent) -> InteractionState t a -> (InteractionState t a, List a)
 update (loc, evt) intState =
   let
+    e2 =
+      { ty = evt.ty
+      , pt =
+          ( ((Tuple.first evt.pt) * loc.dims.width) - loc.dims.width / 2.0
+          , (((Tuple.second evt.pt) * loc.dims.height) - loc.dims.height / 2.0) * -1.0
+          )
+      }
     (newMS, actions) =
-      processMouseEvent intState.diagram intState.mouseState evt
-
-    newModel =
-      L.foldr intState.updateFunc intState.modelState actions
-
-    newDiagram =
-      intState.renderFunc newModel
+      processMouseEvent intState.diagram intState.mouseState e2
   in
-    { intState | mouseState = newMS
-               , diagram = newDiagram
-               , modelState = newModel
-               }
+  ({ intState | mouseState = newMS }, actions)
+
+withDiagram : Diagram t a -> InteractionState t a -> InteractionState t a
+withDiagram dia state = { state | diagram = dia }
+
+diagramOf : InteractionState t a -> Diagram t a
+diagramOf = .diagram
 
 {-|-}
-initInteractState : UpdateFunc m a -> RenderFunc m t a -> m -> InteractionState m t a
-initInteractState update render model =
+initInteractState : Diagram t a -> InteractionState t a
+initInteractState diagram =
   { mouseState = initMouseState
-  , modelState = model
-  , diagram = render model
-  , renderFunc = render
-  , updateFunc = update
+  , diagram = diagram
   }
-
-{-|-}
-updateModel : (m -> m) -> InteractionState m t a -> InteractionState m t a
-updateModel upFun state =
-  let
-    newModel = upFun state.modelState
-  in
-    { state | modelState = newModel
-            , diagram = state.renderFunc newModel
-            }
 
 -- BUG: no initial pick path
 
@@ -138,15 +97,16 @@ updateModel upFun state =
 {-| Given diagram with mouse state (`MouseDiagram`), mouse event, and dimensions of collage, return
 new `MouseDiagram` with list of actions triggered by this mouse event. -}
 processMouseEvent : Diagram t a -> MouseState t a -> PrimMouseEvent -> (MouseState t a, List a)
-processMouseEvent diagram mouseState (evt, mousePos) =
+processMouseEvent diagram mouseState mouseEvt =
     let
-      overTree = pick diagram mousePos -- need to pick every time because actions may have changed
+      overTree = pick diagram (Debug.log "mouseEvt" mouseEvt).pt -- need to pick every time because actions may have changed
       overPickedTags = preorderTraverse overTree
       overPaths = tagPaths overPickedTags
       oldOverPickedTags = mouseState.overPickedTags
       oldOverPaths = tagPaths oldOverPickedTags
     in
-      case evt of
+      case mouseEvt.ty of
+        
         MouseMoveEvt ->
           let
             enters = L.filterMap (getHandler .mouseEnter) <|
