@@ -41,6 +41,7 @@ type PrimMouseEvtType
   = MouseUpEvt
   | MouseDownEvt
   | MouseMoveEvt
+  | WindowSizeEvt
 
 {-| Given window size, where on screen and how big is your collage? -}
 type alias CollageLocFunc =

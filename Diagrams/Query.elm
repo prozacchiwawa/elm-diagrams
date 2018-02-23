@@ -56,16 +56,10 @@ pick diag point =
   in
     case diag of
       Circle r fs ->
-          if r == 3 then
-              if magnitude (Debug.log "pt?" point) <= r + (halfStrokeWidth fs) then
-                  Debug.log "pick?" Just PickLeaf
-              else
-                  Nothing
+          if magnitude point <= r + (halfStrokeWidth fs) then
+              Just PickLeaf
           else
-              if magnitude point <= r + (halfStrokeWidth fs) then
-                  Just PickLeaf
-              else
-                  Nothing
+              Nothing
 
       Path pts _ ->
         Nothing -- TODO implement picking for paths

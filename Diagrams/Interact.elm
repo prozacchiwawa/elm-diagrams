@@ -1,7 +1,6 @@
 module Diagrams.Interact exposing
-    ( InteractionState, MouseState
-    , initInteractState, update, initMouseState
-    , processMouseEvent, diagramOf, withDiagram
+    ( InteractionState
+    , init, update, view, diagramOf, withDiagram
     )
 
 {-| An abstraction for making diagrams which change as a function of the mouse.
@@ -26,6 +25,7 @@ import Diagrams.Geom exposing (..)
 
 import Window
 import Mouse
+import Html exposing (Html)
 
 import List as L
 import Maybe as M
@@ -37,6 +37,7 @@ import Diagrams.Type exposing (..)
 import Diagrams.Query exposing (..)
 import Diagrams.Geom exposing (..)
 import Diagrams.Actions exposing (..)
+import Diagrams.FullWindow exposing (..)
 
 import Debug
 
@@ -45,14 +46,19 @@ type alias MouseState t a =
     { isDown : Bool
     , overPickedTags : List (PickedTag t a)
     , overPathsOnMouseDown : Maybe (List (List t))
+    , windowSize : OffsetDimsBox
     }
 
 {-|-}
-initMouseState : MouseState t a
-initMouseState =
+initMouseState : Window.Size -> MouseState t a
+initMouseState size =
     { isDown = False
     , overPickedTags = []
     , overPathsOnMouseDown = Nothing
+    , windowSize =
+          { offset = (0,0)
+          , dims = { width = toFloat size.width, height = toFloat size.height }
+          }
     }
 
 {-|-}
@@ -63,21 +69,13 @@ type alias InteractionState t a =
 
 {-| Function to update the interaction state, given an event (probably from `Diagrams.Wiring`'s `makeUpdateStream`)
 -- the other top-level interface. -}
-update : (CollageLocation, PrimMouseEvent) -> InteractionState t a -> (InteractionState t a, List a)
-update (loc, evt) intState =
-  let
-    e2 =
-      { ty = evt.ty
-      , pt =
-          ( ((Tuple.first evt.pt) * loc.dims.width) - loc.dims.width / 2.0
-          , (((Tuple.second evt.pt) * loc.dims.height) - loc.dims.height / 2.0) * -1.0
-          )
-      }
-    (newMS, actions) =
-      processMouseEvent intState.diagram intState.mouseState e2
+update : PrimMouseEvent -> InteractionState t a -> (InteractionState t a, List a)
+update evt intState =
+  let (newMS, actions) =
+      processMouseEvent intState.diagram intState.mouseState evt
   in
   ({ intState | mouseState = newMS }, actions)
-
+  
 withDiagram : Diagram t a -> InteractionState t a -> InteractionState t a
 withDiagram dia state = { state | diagram = dia }
 
@@ -85,9 +83,9 @@ diagramOf : InteractionState t a -> Diagram t a
 diagramOf = .diagram
 
 {-|-}
-initInteractState : Diagram t a -> InteractionState t a
-initInteractState diagram =
-  { mouseState = initMouseState
+init : Diagram t a -> Window.Size -> InteractionState t a
+init diagram size =
+  { mouseState = initMouseState size
   , diagram = diagram
   }
 
@@ -97,16 +95,24 @@ initInteractState diagram =
 {-| Given diagram with mouse state (`MouseDiagram`), mouse event, and dimensions of collage, return
 new `MouseDiagram` with list of actions triggered by this mouse event. -}
 processMouseEvent : Diagram t a -> MouseState t a -> PrimMouseEvent -> (MouseState t a, List a)
-processMouseEvent diagram mouseState mouseEvt =
+processMouseEvent diagram mouseState evt =
     let
-      overTree = pick diagram (Debug.log "mouseEvt" mouseEvt).pt -- need to pick every time because actions may have changed
+      (x,y) = evt.pt
+      loc = mouseState.windowSize
+      mouseEvt =
+          { ty = evt.ty
+          , pt =
+                ( x - loc.dims.width / 2.0
+                , (y - loc.dims.height / 2.0) * -1.0
+                )
+          }
+      overTree = pick diagram mouseEvt.pt -- need to pick every time because actions may have changed
       overPickedTags = preorderTraverse overTree
       overPaths = tagPaths overPickedTags
       oldOverPickedTags = mouseState.overPickedTags
       oldOverPaths = tagPaths oldOverPickedTags
     in
       case mouseEvt.ty of
-        
         MouseMoveEvt ->
           let
             enters = L.filterMap (getHandler .mouseEnter) <|
@@ -145,6 +151,15 @@ processMouseEvent diagram mouseState mouseEvt =
                            , overPickedTags = overPickedTags }
             , applyActions <| clicks ++ mouseUps
             )
+
+        WindowSizeEvt ->
+            ({ mouseState
+             | windowSize =
+                 { offset = (0,0)
+                 , dims = { width = x, height = y }
+                 }
+             }, []
+          )
 
 -- helpers for processMouseEvent
 
@@ -204,3 +219,12 @@ mapWithEarlyStop f l =
     (x::xs) -> case f x of
                  (y, True) -> [y]
                  (y, False) -> y :: (mapWithEarlyStop f xs)
+
+view : InteractionState t a -> Html msg
+view interaction =
+    Diagrams.FullWindow.view
+        ( round interaction.mouseState.windowSize.dims.width
+        , round interaction.mouseState.windowSize.dims.height
+        )
+        (diagramOf interaction)
+    |> E.toHtml

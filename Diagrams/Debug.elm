@@ -24,4 +24,4 @@ showBBox : Diagram t a -> Diagram t a
 showBBox d = let dfl = C.defaultLine
                  style = { dfl | width = 2
                                , color = Color.red }
-             in outlineBox style d |> Debug.log "BBox"
+             in outlineBox style d

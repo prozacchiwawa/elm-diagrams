@@ -65,67 +65,49 @@ testDia = let aPath = path [(-50,-50), (30, 100)] C.defaultLine
           in showOrigin <| showBBox <| alignCenter <| (moreStuff |> above stuff |> above stuff)
 
 type Model = Model
-    { interact : InteractionState Tag Action
-    , size : CollageLocation
-    , mouse : PrimMouseEvent
-    }
+    { interact : InteractionState Tag Action }
 
 init : (Model, Cmd Msg)
 init =
     (Model
-        { interact = initInteractState testDia
-        , size = { offset = (0,0), dims = { width = 0, height = 0 } }
-        , mouse = { ty = MouseMoveEvt, pt = (0,0) }
+        { interact = Diagrams.Interact.init testDia { width = 100, height = 100 }
         }
     ) ! [Window.size |> Task.perform (Diagrams.Type.Size >> ExternalMsg)]
 
 update msg (Model model) =
     let
-        doDiagram =
-            case msg of
-                ExternalMsg m -> True
-                _ -> False
-                     
-        updated =
+        intmsg =
             case Debug.log "msg" msg of
                 ExternalMsg (Diagrams.Type.Size s) ->
-                    let loc =
-                        { width = toFloat s.width
-                        , height = toFloat s.height
-                        }
-                    in
-                    { model | size = { offset = (0,0), dims = loc } }
+                    { ty = WindowSizeEvt
+                    , pt = (toFloat s.width, toFloat s.height)
+                    } |> Just
+                    
                 ExternalMsg (Diagrams.Type.Mouse m) ->
-                    { model
-                    | mouse =
-                          { ty = MouseMoveEvt, pt = (toFloat m.x / model.size.dims.width, toFloat m.y / model.size.dims.height) }
-                    }
-                ExternalMsg (Diagrams.Type.Up m) ->
-                    { model
-                    | mouse =
-                          { ty = MouseUpEvt, pt = (toFloat m.x / model.size.dims.width, toFloat m.y / model.size.dims.height) }
-                    }
-                ExternalMsg (Diagrams.Type.Down m) ->
-                    { model
-                    | mouse =
-                          { ty = MouseDownEvt, pt = (toFloat m.x / model.size.dims.width, toFloat m.y / model.size.dims.height) }
-                    }
-                ActionMsg m ->
-                    model
-    
-        (interact, actions) =
-            if doDiagram then
-                Diagrams.Interact.update
-                    (updated.size, updated.mouse)
-                    model.interact
-            else
-                (model.interact, [])
+                    { ty = MouseMoveEvt
+                    , pt = (toFloat m.x, toFloat m.y)
+                    } |> Just
 
-        applyToState =
-            Model
-                { updated
-                | interact = interact
-                }
+                ExternalMsg (Diagrams.Type.Up m) ->
+                    { ty = MouseUpEvt
+                    , pt = (toFloat m.x, toFloat m.y)
+                    } |> Just
+
+                ExternalMsg (Diagrams.Type.Down m) ->
+                    { ty = MouseDownEvt
+                    , pt = (toFloat m.x, toFloat m.y)
+                    } |> Just
+
+                ActionMsg m -> Nothing
+    
+        (applyToState, actions) =
+            intmsg
+            |> Maybe.map
+               (\msg ->
+                    let (i,a) = Diagrams.Interact.update msg model.interact in
+                    (Model { model | interact = i }, a)
+               )
+            |> Maybe.withDefault (Model model, [])
     in
     List.foldr
         (\ev (model, eff) ->
@@ -143,10 +125,7 @@ ptDecoder mt =
                
 view (Model model) =
     div [ ]
-        [ Diagrams.FullWindow.view
-            (round model.size.dims.width, round model.size.dims.height)
-            (diagramOf model.interact)
-        |> E.toHtml
+        [ Diagrams.Interact.view model.interact
         , div
               [ on "mousemove" (ptDecoder Diagrams.Type.Mouse)
               , on "mousedown" (ptDecoder Diagrams.Type.Down)
