@@ -69,7 +69,7 @@ type alias InteractionState t a =
 
 {-| Function to update the interaction state, given an event (probably from `Diagrams.Wiring`'s `makeUpdateStream`)
 -- the other top-level interface. -}
-update : PrimMouseEvent -> InteractionState t a -> (InteractionState t a, List a)
+update : Msg -> InteractionState t a -> (InteractionState t a, List a)
 update evt intState =
   let (newMS, actions) =
       processMouseEvent intState.diagram intState.mouseState evt
@@ -90,73 +90,83 @@ init diagram size =
   }
 
 -- BUG: no initial pick path
-
+mouseLocation mouseState evt =
+    let
+        loc = mouseState.windowSize
+        pos =
+            case evt of
+                Diagrams.Type.Mouse pos -> pos
+                Diagrams.Type.Down pos -> pos
+                Diagrams.Type.Up pos -> pos
+                _ -> { x = 0, y = 0 }
+    in
+    ( (toFloat pos.x) - loc.dims.width / 2.0
+    , ((toFloat pos.y) - loc.dims.height / 2.0) * -1.0
+    )
+    
 -- TODO: fix these docs vv
 {-| Given diagram with mouse state (`MouseDiagram`), mouse event, and dimensions of collage, return
 new `MouseDiagram` with list of actions triggered by this mouse event. -}
-processMouseEvent : Diagram t a -> MouseState t a -> PrimMouseEvent -> (MouseState t a, List a)
+processMouseEvent : Diagram t a -> MouseState t a -> Msg -> (MouseState t a, List a)
 processMouseEvent diagram mouseState evt =
     let
-      (x,y) = evt.pt
-      loc = mouseState.windowSize
-      mouseEvt =
-          { ty = evt.ty
-          , pt =
-                ( x - loc.dims.width / 2.0
-                , (y - loc.dims.height / 2.0) * -1.0
-                )
-          }
-      overTree = pick diagram mouseEvt.pt -- need to pick every time because actions may have changed
+      pt = mouseLocation mouseState evt
+      overTree = pick diagram pt -- need to pick every time because actions may have changed
       overPickedTags = preorderTraverse overTree
       overPaths = tagPaths overPickedTags
       oldOverPickedTags = mouseState.overPickedTags
       oldOverPaths = tagPaths oldOverPickedTags
     in
-      case mouseEvt.ty of
-        MouseMoveEvt ->
-          let
-            enters = L.filterMap (getHandler .mouseEnter) <|
-               L.filter (\pTag -> not <| L.member (tagPath pTag) oldOverPaths) overPickedTags
+    case evt of
+        Diagrams.Type.Mouse _ ->
+            let
+                enters = L.filterMap (getHandler .mouseEnter) <|
+                    L.filter (\pTag -> not <| L.member (tagPath pTag) oldOverPaths) overPickedTags
 
-            leaves = L.filterMap (getHandler .mouseLeave) <|
-               L.filter (\pTag -> not <| L.member (tagPath pTag) overPaths) oldOverPickedTags
+                leaves = L.filterMap (getHandler .mouseLeave) <|
+                    L.filter (\pTag -> not <| L.member (tagPath pTag) overPaths) oldOverPickedTags
 
-            moves = L.filterMap (getHandler .mouseMove) <|
-               L.filter (\pTag -> L.member (tagPath pTag) oldOverPaths) overPickedTags
+                moves = L.filterMap (getHandler .mouseMove) <|
+                    L.filter (\pTag -> L.member (tagPath pTag) oldOverPaths) overPickedTags
 
-          in
+            in
             ( { mouseState | overPickedTags = overPickedTags }
             , applyActions <| enters ++ leaves ++ moves
             )
 
-        MouseDownEvt ->
-          ( { mouseState | isDown = True
-                         , overPathsOnMouseDown = Just overPaths
-                         , overPickedTags = overPickedTags }
-          , applyActions <| L.filterMap (getHandler .mouseDown) overPickedTags
-          )
+        Diagrams.Type.Down _ ->
+            ( { mouseState | isDown = True
+              , overPathsOnMouseDown = Just overPaths
+              , overPickedTags = overPickedTags }
+            , applyActions <| L.filterMap (getHandler .mouseDown) overPickedTags
+            )
 
-        MouseUpEvt ->
-          let
-            mouseUps =
-              L.filterMap (getHandler .mouseUp) overPickedTags
-
-            clicks =
-              if overPaths == M.withDefault [] mouseState.overPathsOnMouseDown
-              then L.filterMap (getHandler .click) overPickedTags
-              else []
-          in
-            ( { mouseState | isDown = False
-                           , overPathsOnMouseDown = Nothing
-                           , overPickedTags = overPickedTags }
+        Diagrams.Type.Up _ ->
+            let
+                mouseUps =
+                    L.filterMap (getHandler .mouseUp) overPickedTags
+                        
+                clicks =
+                    if overPaths == M.withDefault [] mouseState.overPathsOnMouseDown
+                    then L.filterMap (getHandler .click) overPickedTags
+                    else []
+            in
+            ( { mouseState
+              | isDown = False
+              , overPathsOnMouseDown = Nothing
+              , overPickedTags = overPickedTags
+              }
             , applyActions <| clicks ++ mouseUps
             )
 
-        WindowSizeEvt ->
+        Diagrams.Type.Size size ->
             ({ mouseState
              | windowSize =
                  { offset = (0,0)
-                 , dims = { width = x, height = y }
+                 , dims =
+                       { width = toFloat size.width
+                       , height = toFloat size.height
+                       }
                  }
              }, []
           )

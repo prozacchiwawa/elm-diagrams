@@ -78,26 +78,7 @@ update msg (Model model) =
     let
         intmsg =
             case Debug.log "msg" msg of
-                ExternalMsg (Diagrams.Type.Size s) ->
-                    { ty = WindowSizeEvt
-                    , pt = (toFloat s.width, toFloat s.height)
-                    } |> Just
-                    
-                ExternalMsg (Diagrams.Type.Mouse m) ->
-                    { ty = MouseMoveEvt
-                    , pt = (toFloat m.x, toFloat m.y)
-                    } |> Just
-
-                ExternalMsg (Diagrams.Type.Up m) ->
-                    { ty = MouseUpEvt
-                    , pt = (toFloat m.x, toFloat m.y)
-                    } |> Just
-
-                ExternalMsg (Diagrams.Type.Down m) ->
-                    { ty = MouseDownEvt
-                    , pt = (toFloat m.x, toFloat m.y)
-                    } |> Just
-
+                ExternalMsg m -> Just m
                 ActionMsg m -> Nothing
     
         (applyToState, actions) =

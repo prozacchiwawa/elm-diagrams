@@ -25,24 +25,6 @@ Offset is difference between top left of screen and top left of collage, increas
 type alias CollageLocation =
   OffsetDimsBox
 
-{-|-}
-type alias PrimMouseEvent =
-  { ty : PrimMouseEvtType
-  , pt : Point
-  }
-
-type alias MouseAndSizeEvent =
-  { mouse : PrimMouseEvent
-  , size : Dims
-  }
-    
-{-|-}
-type PrimMouseEvtType
-  = MouseUpEvt
-  | MouseDownEvt
-  | MouseMoveEvt
-  | WindowSizeEvt
-
 {-| Given window size, where on screen and how big is your collage? -}
 type alias CollageLocFunc =
   Dims -> CollageLocation
