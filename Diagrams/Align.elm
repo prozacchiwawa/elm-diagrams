@@ -25,7 +25,7 @@ import Diagrams.RealType exposing (..)
 are on a horizontal line and their envelopes touch. The origin of the new diagram
 is the origin of a. -}
 beside : T.Diagram t a -> T.Diagram t a -> T.Diagram t a
-beside a b =
+beside b a =
   let xTrans = (envelope Right a) + (envelope Left b)
   in Group [a, TransformD (Translate xTrans 0) b]
 
@@ -33,26 +33,26 @@ beside a b =
 are on a horizontal line and their envelopes touch. The origin of the new diagram
 is the origin of a. -}
 above : T.Diagram t a -> T.Diagram t a -> T.Diagram t a
-above a b =
+above b a =
   let yTrans = (envelope Down a) + (envelope Up b)
   in Group [a, TransformD (Translate 0 -yTrans) b]
 
 {-| Given two diagrams a and b, stack a on top of b in the "out of page" axis,
 so a occludes b. -}
 atop : T.Diagram t a -> T.Diagram t a -> T.Diagram t a
-atop a b = Group [a, b]
+atop b a = Group [a, b]
 
 {-| Place a list of Diagrams next to each other, such that
 their origins are along a horizontal line. The first element in the list will
 be on the left; the last on the right. -}
 hcat : List (T.Diagram t a) -> T.Diagram t a
-hcat = L.foldr beside empty
+hcat = L.foldr (flip beside) empty
 
 {-| Place a list of Diagrams next to each other, such that
 their origins are along a vertical line. The first element in the list will
 be on the top; the last on the bottom. -}
 vcat : List (T.Diagram t a) -> T.Diagram t a
-vcat = L.foldr above empty
+vcat = L.foldr (flip above) empty
 
 {-| Place a list of diagrams on top of each other, with their origin points
 stacked on the "out of page" axis. The first diagram in the list is on top.
