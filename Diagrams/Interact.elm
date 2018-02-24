@@ -235,8 +235,8 @@ mapWithEarlyStop f l =
 
 ptDecoder mt =
     JD.map2 Mouse.Position
-        (JD.field "clientX" JD.int)
-        (JD.field "clientY" JD.int)
+        (JD.field "offsetX" JD.int)
+        (JD.field "offsetY" JD.int)
     |> JD.map mt
                
 view : List (Attribute Msg) -> InteractionState t a -> Html Msg
