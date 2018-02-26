@@ -42,6 +42,11 @@ so a occludes b. -}
 atop : T.Diagram t a -> T.Diagram t a -> T.Diagram t a
 atop b a = Group [a, b]
 
+{-| Given two diagrams a and b, stack b on top of a in the "out of page" axis,
+so a occludes b. -}
+underneath : T.Diagram t a -> T.Diagram t a -> T.Diagram t a
+underneath a b = Group [a, b]
+
 {-| Place a list of Diagrams next to each other, such that
 their origins are along a horizontal line. The first element in the list will
 be on the left; the last on the right. -}
